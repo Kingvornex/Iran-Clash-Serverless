@@ -57,6 +57,6 @@ proxy-groups:
       - DIRECT
 
 rules:
-  - DST-PORT,53,DNS
+  - DST-PORT,53,dns-out
   - DST-PORT,0-65535,fragment-out
   - MATCH,Default
