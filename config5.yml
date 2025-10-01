@@ -1,1 +1,108 @@
+mixed-port: 7890
+allow-lan: true
+mode: rule
+log-level: info
 
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - geosite:category-ads-all
+    - domain:ir
+  nameserver:
+    - https://cloudflare-dns.com/dns-query
+    - 1.1.1.1
+  fallback:
+    - 1.0.0.1
+  hosts:
+    one.one.one.one:
+      - 1.1.1.1
+      - 1.0.0.1
+      - 2606:4700:4700::1111
+      - 2606:4700:4700::1001
+    cloudflare-dns.com: www.cloudflare.com
+
+proxies:
+  - name: direct-out
+    type: direct
+
+  - name: dns-out
+    type: direct
+
+  - name: skip-fragment
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "130"
+      interval: "190"
+      maxSplit: 4
+
+  - name: _chain-skip
+    type: direct
+    tcp-fragment:
+      packets: "2-4"
+      length: "1"
+      interval: "1"
+      maxSplit: 130
+
+  - name: full-fragment
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "1"
+      interval: "1"
+      maxSplit: 517
+
+  - name: udp-noises
+    type: direct
+    udp-noise:
+      targetStrategy: ForceIP
+      noises:
+        - type: rand
+          packet: 1250
+          delay: 10
+          applyTo: ipv4
+        - type: rand
+          packet: 1230
+          delay: 10
+          applyTo: ipv6
+
+  - name: block-out
+    type: reject
+
+proxy-groups:
+  - name: Default
+    type: select
+    proxies:
+      - full-fragment
+      - _chain-skip
+      - skip-fragment
+      - udp-noises
+      - direct-out
+      - block-out
+
+rules:
+  - DOMAIN-SUFFIX,ir,direct-out
+  - GEOIP,ir,direct-out
+  - GEOIP,private,direct-out
+  - DOMAIN-SUFFIX,localhost,direct-out
+  - DOMAIN-KEYWORD,ads,block-out
+  - GEOIP,cloudflare,_chain-skip
+  - GEOIP,cloudfront,_chain-skip
+  - DOMAIN-SUFFIX,googlevideo.com,full-fragment
+  - DOMAIN-SUFFIX,youtube.com,full-fragment
+  - DOMAIN-SUFFIX,reddit.com,full-fragment
+  - DOMAIN-SUFFIX,x.com,full-fragment
+  - DOMAIN-SUFFIX,facebook.com,full-fragment
+  - DOMAIN-SUFFIX,instagram.com,full-fragment
+  - NETWORK,udp,udp-noises
+  - DST-PORT,443,udp-noises
+  - DST-PORT,2053,udp-noises
+  - DST-PORT,2083,udp-noises
+  - DST-PORT,2087,udp-noises
+  - DST-PORT,2096,udp-noises
+  - DST-PORT,8443,udp-noises
+  - NETWORK,tcp,full-fragment
+  - MATCH,Default
