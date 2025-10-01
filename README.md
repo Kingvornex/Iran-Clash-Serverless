@@ -223,142 +223,105 @@ Special flows:
  - MATCH => DEFAULT_GROUP (tries SUPER_CHAIN_SELECT -> UDP_NOISES -> direct -> block)
 
 # clash meta rule types:
-Clash.Meta supports a comprehensive set of rule types that enable users to route network traffic based on various conditions such as domain names, IP addresses, ports, processes, and geographic location. Here's a detailed overview of the supported rule types:
+Clash.Meta offers an advanced rule-based system that allows users to define granular network traffic routing policies. In addition to the primary rule types, Clash.Meta supports various subtypes and conditions, enhancing flexibility and control.
 
 ---
 
-### 🔧 Supported Rule Types in Clash.Meta
+## 🔧 Rule Types and Subtypes in Clash.Meta
 
-1. **DOMAIN**
-   Matches exact domain names.
-   Example:
+Below is a comprehensive list of supported rule types, including their subtypes and conditions:
 
-   ```yaml
-   DOMAIN,example.com,DIRECT
-   ```
+### 1. **DOMAIN Matching Rules**
 
-2. **DOMAIN-SUFFIX**
-   Matches domains with a specific suffix.
-   Example:
+These rules match based on domain names or patterns.
 
-   ```yaml
-   DOMAIN-SUFFIX,example.com,DIRECT
-   ```
+* `DOMAIN`: Matches exact domain names.
+* `DOMAIN-SUFFIX`: Matches domains with a specific suffix.
+* `DOMAIN-KEYWORD`: Matches domains containing a specific keyword.
+* `DOMAIN-WILDCARD`: Wildcard matching, supports `*` and `?` wildcards.
+* `DOMAIN-REGEX`: Matches domains using regular expressions.
 
-3. **DOMAIN-KEYWORD**
-   Matches domains containing a specific keyword.
-   Example:
+### 2. **GEOIP Rules**
 
-   ```yaml
-   DOMAIN-KEYWORD,example,DIRECT
-   ```
+These rules route traffic based on the geographic location of the destination IP address.
 
-4. **GEOIP**
-   Matches based on the geographic location of the IP address.
-   Example:
+* `GEOIP`: Matches based on the country code of the destination IP.
+* `GEOIP6`: Matches based on the country code of the destination IPv6 address.
+* `GEOSITE`: Matches domains within a specific geosite category.
 
-   ```yaml
-   GEOIP,CN,DIRECT
-   ```
+### 3. **IP-CIDR Rules**
 
-5. **GEOIP6**
-   Matches based on the geographic location of the IPv6 address.
-   Example:
+These rules match based on IP address ranges.
 
-   ```yaml
-   GEOIP6,CN,DIRECT
-   ```
+* `IP-CIDR`: Matches destination IPv4 address ranges.
+* `IP-CIDR6`: Matches destination IPv6 address ranges.
+* `SRC-IP-CIDR`: Matches source IPv4 address ranges.
+* `SRC-IP-CIDR6`: Matches source IPv6 address ranges.
 
-6. **IP-CIDR**
-   Matches based on the destination IPv4 address.
-   Example:
+### 4. **Port Matching Rules**
 
-   ```yaml
-   IP-CIDR,192.168.1.0/24,DIRECT
-   ```
+These rules match based on port numbers.
 
-7. **IP-CIDR6**
-   Matches based on the destination IPv6 address.
-   Example:
+* `DST-PORT`: Matches destination port numbers.
+* `SRC-PORT`: Matches source port numbers.
 
-   ```yaml
-   IP-CIDR6,2001:db8::/32,DIRECT
-   ```
+*Note: These rules support multiport conditions, allowing specification of multiple ports or port ranges (e.g., `123/136/137-139`).*
 
-8. **SRC-IP-CIDR**
-   Matches based on the source IPv4 address.
-   Example:
+### 5. **Process Matching Rules**
 
-   ```yaml
-   SRC-IP-CIDR,192.168.1.100/32,DIRECT
-   ```
+These rules match based on the process name or path.
 
-9. **SRC-IP-CIDR6**
-   Matches based on the source IPv6 address.
-   Example:
+* `PROCESS-NAME`: Matches the name of the process sending the packet.
+* `PROCESS-PATH`: Matches the path of the process sending the packet.
 
-   ```yaml
-   SRC-IP-CIDR6,2001:db8::1/128,DIRECT
-   ```
+### 6. **Rule Set and Script Rules**
 
-10. **DST-PORT**
-    Matches based on the destination port.
-    Example:
+These rules allow for dynamic rule evaluation.
 
-    ```yaml
-    DST-PORT,80,DIRECT
-    ```
+* `RULE-SET`: Matches based on an external rule provider.
+* `SCRIPT`: Matches based on the evaluation of a script.
 
-11. **SRC-PORT**
-    Matches based on the source port.
-    Example:
+### 7. **Network and Subrule Conditions**
 
-    ```yaml
-    SRC-PORT,8080,DIRECT
-    ```
+These conditions apply additional filters to rules.
 
-12. **PROCESS-NAME**
-    Matches based on the name of the process sending the packet.
-    Example:
+* `network`: Specifies the network type (e.g., `tcp`, `udp`) for the rule.
+* `subRules`: Defines additional subrules to refine the matching criteria.
 
-    ```yaml
-    PROCESS-NAME,chrome,DIRECT
-    ```
+*Example: `DOMAIN-SUFFIX,bilibili.com,DIRECT,tcp` routes TCP traffic to `bilibili.com` directly, while `DOMAIN-SUFFIX,bilibili.com,REJECT,udp` rejects UDP traffic to the same domain.*
 
-13. **PROCESS-PATH**
-    Matches based on the path of the process sending the packet.
-    Example:
+### 8. **Match Rule**
 
-    ```yaml
-    PROCESS-PATH,/usr/bin/chrome,DIRECT
-    ```
+A catch-all rule that matches any traffic not matched by previous rules.
 
-14. **RULE-SET**
-    Matches based on a set of external rules provided by a rule provider.
-    Example:
-
-    ```yaml
-    RULE-SET,google,DIRECT
-    ```
-
-15. **SCRIPT**
-    Matches based on the evaluation of a script.
-    Example:
-
-    ```yaml
-    SCRIPT,check_https,DIRECT
-    ```
-
-16. **MATCH**
-    A catch-all rule that matches any traffic not matched by previous rules.
-    Example:
-
-    ```yaml
-    MATCH,REJECT
-    ```
+* `MATCH`: A catch-all rule that matches any traffic not matched by previous rules.
 
 ---
 
-These rule types allow for granular control over network traffic, enabling users to implement complex routing logic based on various conditions. For more detailed information and examples, you can refer to the official Clash.Meta documentation. ([GitHub][1])
+## 📌 Example Configuration
 
-[1]: https://github.com/djoeni/Clash.Meta?utm_source=chatgpt.com "djoeni/Clash.Meta: A rule-based tunnel in Go. - GitHub"
+```yaml
+rules:
+  - DOMAIN-SUFFIX,bilibili.com,DIRECT,tcp
+  - DOMAIN-SUFFIX,bilibili.com,REJECT,udp
+  - DST-PORT,123/136/137-139,DIRECT,udp
+  - GEOSITE,category-ads-all,REJECT
+  - GEOIP,CN,DIRECT
+  - MATCH,PROXY
+```
+
+In this configuration:
+
+* TCP traffic to `bilibili.com` is routed directly.
+* UDP traffic to `bilibili.com` is rejected.
+* UDP traffic to ports 123, 136, 137, and 139 is routed directly.
+* Traffic matching the `category-ads-all` geosite is rejected.
+* Traffic to IPs in China is routed directly.
+* All other traffic is routed through the `PROXY` policy.
+
+---
+
+For more detailed information and advanced configurations, you can refer to the official Clash.Meta documentation. ([GitHub][1])
+
+[1]: https://github.com/djoeni/Clash.Meta?utm_source=chatgpt.com "djoeni/Clash.Meta: A rule-based tunnel in Go."
+
