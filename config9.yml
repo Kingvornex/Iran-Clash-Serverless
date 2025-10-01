@@ -1,0 +1,232 @@
+# 🎯 User-Friendly Clash.Meta Config with Friendly Group Names
+
+# 🔌 Main settings
+mixed-port: 7890
+redir-port: 7892
+allow-lan: true
+bind-address: 0.0.0.0
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9090
+ipv6: true
+
+# 🌐 Profile & DNS
+profile:
+  store-selected: true
+  store-fake-ip: true
+  store-resolve-cache: true
+
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.0/15
+  fake-ip-filter:
+    - geosite:category-ads-all
+    - domain:ir
+    - domain-suffix:tracking
+  nameserver:
+    - https://cloudflare-dns.com/dns-query
+    - https://dns.google/dns-query
+    - 1.1.1.1
+    - 1.0.0.1
+  fallback:
+    - 1.0.0.1
+    - 8.8.8.8
+  default-nameserver:
+    - 1.1.1.1
+
+# ⚡ Proxies (fragmentation, UDP noise, remote nodes)
+proxies:
+  - name: ⚡ Frag Hello
+    type: direct
+    tcp-fragment:
+      packets: "tlshello"
+      length: "6"
+      interval: "0"
+      maxSplit: 6
+
+  - name: 🟢 Frag Small 1
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "1"
+      interval: "1"
+      maxSplit: 517
+
+  - name: 🟡 Frag Mid
+    type: direct
+    tcp-fragment:
+      packets: "2-4"
+      length: "64"
+      interval: "1"
+      maxSplit: 200
+
+  - name: 🔗 Chain Skip
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "130"
+      interval: "190"
+      maxSplit: 4
+    dialer-proxy: Chain Next
+
+  - name: 🔗 Chain Next
+    type: direct
+    tcp-fragment:
+      packets: "2-4"
+      length: "1"
+      interval: "1"
+      maxSplit: 130
+    dialer-proxy: Chain Final
+
+  - name: 🔗 Chain Final
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "1"
+      interval: "1"
+      maxSplit: 517
+
+  - name: 🌊 UDP Noise v4
+    type: direct
+    udp-noise:
+      targetStrategy: ForceIP
+      noises:
+        - type: rand
+          packet: 1250
+          delay: 10
+          applyTo: ipv4
+
+  - name: 🌊 UDP Noise v6
+    type: direct
+    udp-noise:
+      targetStrategy: ForceIP
+      noises:
+        - type: rand
+          packet: 1230
+          delay: 10
+          applyTo: ipv6
+
+  - name: 🟢 Direct
+    type: direct
+
+  - name: ❌ Block
+    type: reject
+
+  - name: 🌐 Remote VMess 1
+    type: vmess
+    server: example.com
+    port: 443
+    uuid: REPLACE-UUID-1
+    alterId: 0
+    cipher: auto
+    tls: true
+    network: ws
+    ws-opts:
+      path: "/"
+      headers:
+        Host: example.com
+
+  - name: 🌐 Remote VMess 2
+    type: vmess
+    server: example2.com
+    port: 443
+    uuid: REPLACE-UUID-2
+    alterId: 0
+    cipher: auto
+    tls: true
+    network: ws
+    ws-opts:
+      path: "/"
+      headers:
+        Host: example2.com
+
+# 🎛️ Friendly Proxy Groups
+proxy-groups:
+  - name: ⚡ Frag Round-Robin
+    type: load-balance
+    strategy: round-robin
+    interval: 300
+    proxies:
+      - ⚡ Frag Hello
+      - 🟢 Frag Small 1
+      - 🟡 Frag Mid
+
+  - name: 🔗 Frag Chain LB
+    type: load-balance
+    strategy: consistent-hashing
+    interval: 180
+    proxies:
+      - 🔗 Chain Skip
+      - 🔗 Chain Next
+      - 🔗 Chain Final
+
+  - name: 🌊 UDP Noise Group
+    type: load-balance
+    strategy: round-robin
+    proxies:
+      - 🌊 UDP Noise v4
+      - 🌊 UDP Noise v6
+
+  - name: 🌐 Remote Fallbacks
+    type: load-balance
+    strategy: sticky-sessions
+    interval: 60
+    proxies:
+      - 🌐 Remote VMess 1
+      - 🌐 Remote VMess 2
+      - 🟢 Direct
+
+  - name: 🏆 Super Chain Selector
+    type: select
+    proxies:
+      - ⚡ Frag Round-Robin
+      - 🔗 Frag Chain LB
+      - 🌐 Remote Fallbacks
+      - 🟢 Direct
+
+  - name: 🎬 YouTube Heavy
+    type: load-balance
+    strategy: consistent-hashing
+    sticky: true
+    proxies:
+      - 🔗 Frag Chain LB
+      - ⚡ Frag Round-Robin
+      - 🌐 Remote Fallbacks
+
+  - name: 🔧 Default Group
+    type: select
+    proxies:
+      - 🏆 Super Chain Selector
+      - 🌊 UDP Noise Group
+      - 🟢 Direct
+      - ❌ Block
+
+# 📜 Rules (user-friendly)
+rules:
+  - DST-PORT,53,🟢 Direct        # 🏠 Local DNS
+  - GEOIP,private,🟢 Direct      # 🏠 Private IPs / LAN
+  - DOMAIN-KEYWORD,ads,❌ Block   # 🚫 Ads
+  - DOMAIN-KEYWORD,tracking,❌ Block
+
+  # 🎥 Streaming / heavy traffic
+  - DOMAIN-SUFFIX,youtube.com,🎬 YouTube Heavy
+  - DOMAIN-SUFFIX,googlevideo.com,🎬 YouTube Heavy
+  - DOMAIN-SUFFIX,youtu.be,🎬 YouTube Heavy
+
+  # 📱 Socials / CDN
+  - DOMAIN-SUFFIX,facebook.com,🔗 Frag Chain LB
+  - DOMAIN-SUFFIX,instagram.com,🔗 Frag Chain LB
+  - DOMAIN-SUFFIX,reddit.com,🔗 Frag Chain LB
+  - DOMAIN-SUFFIX,cdn.cloudflare.com,🔗 Frag Chain LB
+
+  # 🌊 UDP / QUIC
+  - NETWORK,udp,🌊 UDP Noise Group
+  - DST-PORT,443,🌊 UDP Noise Group
+  - DST-PORT,2053,🌊 UDP Noise Group
+  - DST-PORT,8443,🌊 UDP Noise Group
+
+  # 🔄 Default fallback
+  - MATCH,🔧 Default Group
