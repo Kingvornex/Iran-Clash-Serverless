@@ -397,3 +397,257 @@ For more detailed information and advanced configurations, you can refer to the 
 
 [1]: https://github.com/djoeni/Clash.Meta?utm_source=chatgpt.com "djoeni/Clash.Meta: A rule-based tunnel in Go."
 
+---
+
+# Clash.Meta Inbound Traffic Configuration
+
+This configuration file defines various **inbound listeners** for Clash.Meta. Inbound listeners are network entry points that accept traffic from clients or other network nodes. Each listener can have a different protocol, port, and routing behavior.
+
+---
+
+## 🔹 Listeners Overview
+
+### 1. **SOCKS5 Listener**
+
+```yaml
+- name: socks5-in-1
+  type: socks
+  port: 10808
+```
+
+* Accepts SOCKS5 connections.
+* Optional fields:
+
+  * `listen`: interface to bind (default `0.0.0.0`).
+  * `rule`: specify sub-rule set (default uses main `rules`).
+  * `proxy`: forward inbound traffic to a specific proxy.
+  * `udp`: enable/disable UDP (default `true`).
+
+---
+
+### 2. **HTTP Listener**
+
+```yaml
+- name: http-in-1
+  type: http
+  port: 10809
+  listen: 0.0.0.0
+```
+
+* Accepts HTTP proxy connections.
+* Supports optional `rule` and `proxy`.
+
+---
+
+### 3. **Mixed HTTP/SOCKS Listener**
+
+```yaml
+- name: mixed-in-1
+  type: mixed
+  port: 10810
+  listen: 0.0.0.0
+```
+
+* Accepts both HTTP(S) and SOCKS proxy connections.
+* Useful when both protocols are required on a single port.
+
+---
+
+### 4. **Redir Listener**
+
+```yaml
+- name: reidr-in-1
+  type: redir
+  port: 10811
+```
+
+* Transparent proxy for redirecting TCP traffic.
+* Can be used with firewall rules to intercept traffic.
+
+---
+
+### 5. **TProxy Listener**
+
+```yaml
+- name: tproxy-in-1
+  type: tproxy
+  port: 10812
+```
+
+* Transparent proxy supporting TCP/UDP.
+* Often used for advanced routing scenarios on Linux.
+
+---
+
+### 6. **Shadowsocks Listener**
+
+```yaml
+- name: shadowsocks-in-1
+  type: shadowsocks
+  port: 10813
+  password: vlmpIPSyHH6f4S8WVPdRIHIlzmB+GIRfoH3aNJ/t9Gg=
+  cipher: 2022-blake3-aes-256-gcm
+```
+
+* Accepts Shadowsocks encrypted traffic.
+* `password` and `cipher` are required for secure connections.
+
+---
+
+### 7. **Vmess Listener**
+
+```yaml
+- name: vmess-in-1
+  type: vmess
+  port: 10814
+  users:
+    - username: 1
+      uuid: 9d0cb9d0-964f-4ef6-897d-6c6b3ccf9e68
+      alterId: 1
+```
+
+* Supports Vmess protocol.
+* Requires `users` with UUIDs and optional `alterId`.
+
+---
+
+### 8. **Tuic Listener**
+
+```yaml
+- name: tuic-in-1
+  type: tuic
+  port: 10815
+```
+
+* High-performance protocol with advanced features:
+
+  * `token`, `certificate`, `private-key`, `congestion-controller`, etc.
+* Supports TCP, UDP, QUIC, and optional ALPN configurations.
+
+---
+
+### 9. **Tunnel Listener**
+
+```yaml
+- name: tunnel-in-1
+  type: tunnel
+  port: 10816
+  network: [tcp, udp]
+  target: target.com
+```
+
+* Accepts traffic over TCP/UDP tunnels to a target server.
+* Flexible for VPN-like forwarding scenarios.
+
+---
+
+### 10. **TUN Listener**
+
+```yaml
+- name: tun-in-1
+  type: tun
+  stack: system
+  dns-hijack:
+    - 0.0.0.0:53
+  inet4-address:
+    - 198.19.0.1/30
+  inet6-address:
+    - "fdfe:dcba:9877::1/126"
+```
+
+* Virtual network interface listener.
+* Supports full IPv4/IPv6 routing.
+* Advanced options:
+
+  * `auto-detect-interface`, `auto-route`, `mtu`, `strict_route`.
+  * Linux UID-based routing (`include_uid`, `exclude_uid`).
+  * Android user/app-specific routing (`include_android_user`, `include_package`).
+
+---
+
+## 🔹 Notes on Listener Options
+
+* **`rule`**: Each listener can optionally use a `sub-rule` set; if not found, it uses the global `rules`.
+* **`proxy`**: Directly forward inbound traffic to a proxy; must reference a valid proxy name.
+* **`udp`**: Enable or disable UDP relay for supported protocols.
+* **`listen`**: Network interface binding; default is `0.0.0.0`.
+* **Security options**: Some protocols (Shadowsocks, Vmess, Tuic) require keys, passwords, or tokens for encryption.
+
+---
+
+## 🔹 Usage Example
+
+```yaml
+# SOCKS5 listener forwarding TCP traffic
+- name: socks5-in-1
+  type: socks
+  port: 10808
+  udp: true
+  rule: sub-rule-name1
+```
+
+```yaml
+# TUN interface for full device routing
+- name: tun-in-1
+  type: tun
+  stack: system
+  auto-route: true
+  inet4-address:
+    - 198.19.0.1/30
+  inet6-address:
+    - "fdfe:dcba:9877::1/126"
+```
+
+---
+
+## 🔹 Summary
+
+* This configuration supports **all major inbound protocols**: SOCKS, HTTP, Mixed, Redir, TProxy, Shadowsocks, Vmess, Tuic, Tunnel, and TUN.
+* Each listener is **fully configurable**, allowing protocol-specific options, routing rules, and network-level adjustments.
+* Ideal for **multi-protocol proxy servers** and **advanced routing setups** on Linux, Windows, and Android.
+
+---
+```
+                       ┌─────────────────────────────┐
+                       │        Client Traffic       │
+                       └──────────────┬──────────────┘
+                                      │
+           ┌──────────────────────────┼──────────────────────────┐
+           │                          │                          │
+   ┌───────▼───────┐          ┌───────▼───────┐          ┌───────▼───────┐
+   │  SOCKS5-in-1  │          │  HTTP-in-1    │          │  Mixed-in-1   │
+   │   Port 10808  │          │  Port 10809   │          │  Port 10810   │
+   └───────┬───────┘          └───────┬───────┘          └───────┬───────┘
+           │                          │                          │
+           └─────────────┬────────────┘                          │
+                         │                                       │
+                   ┌─────▼─────┐                                 │
+                   │   Rules   │                                 │
+                   │ Main rules│                                 │
+                   └─────┬─────┘                                 │
+                         │                                       │
+       ┌─────────────────┼─────────────────────┐                │
+       │                 │                     │                │
+┌──────▼──────┐   ┌──────▼──────┐       ┌──────▼──────┐         │
+│ Sub-rule-1  │   │ Sub-rule-2  │       │ Sub-rule-3  │         │
+│ (TCP traffic│   │ (UDP only)  │       │ Mixed rules │         │
+└──────┬──────┘   └──────┬──────┘       └──────┬──────┘         │
+       │                 │                     │                │
+┌──────▼──────┐   ┌──────▼──────┐       ┌──────▼──────┐         │
+│ DOMAIN/PROXY│   │ IP-CIDR/REJ │       │ Combined    │         │
+│ google.com  │   │ 1.1.1.1/32  │       │ rules       │         │
+│ baidu.com   │   │ 8.8.8.8/32  │       │ etc.        │         │
+└─────────────┘   └─────────────┘       └─────────────┘         │
+                                                                │
+                                                                │
+                                                    ┌───────────▼───────────┐
+                                                    │     Final Action      │
+                                                    │  DIRECT / REJECT /    │
+                                                    │      PROXY            │
+                                                    └───────────────────────┘
+
+Legend:
+- Main rules: global rules applied if sub-rule not specified
+- Sub-rules: traffic branch sets for fine-grained control
+- Final Action: outcome after evaluating all rules
+```
