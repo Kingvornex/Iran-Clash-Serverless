@@ -1,0 +1,157 @@
+# FlClash / Clash-compatible approximation of your Xray config
+# NOTE: Many Xray-only features are preserved only as comments.
+mixed-port: 7890
+allow-lan: true
+mode: rule
+log-level: warning
+
+# DNS
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: true
+  enhanced-mode: fake-ip
+  # h2c://1.1.1.1/dns-query used in original -> Clash supports HTTPS DoH; h2c is not standard here.
+  nameserver:
+    - 1.1.1.1
+    - https://cloudflare-dns.com/dns-query   # optional
+  # Xray had: hosts entry using geosite:category-ads-all -> mapped as comment + host entry
+  hosts:
+    # Clash's 'hosts' normally maps literal domains to IPs.
+    # The original used geosite tag -> not directly supported. Kept as comment for reference.
+    # "geosite:category-ads-all": ["10.10.34.36", "2001:4188:2:600:10:10:34:36"]
+    "10.10.34.36": 10.10.34.36
+    "2001:4188:2:600:10:10:34:36": 2001:4188:2:600:10:10:34:36
+
+# Proxies (converted from outbounds)
+proxies:
+  - name: block
+    type: reject
+
+  - name: direct
+    type: direct
+    # original settings: {"domainStrategy":"ForceIP"} (Xray-only) — not available in Clash.
+
+  - name: redirect-out-h11
+    type: direct
+    # original redirected to 127.0.0.1:4431 (dokodemo-door MitM). Documented here for reference.
+    # Xray used "redirect": "127.0.0.1:4431"
+
+  - name: redirect-out-h211
+    type: direct
+    # original redirect -> 127.0.0.1:4432
+
+  - name: tls-repack-dns
+    type: direct
+    # Xray had TLS repack settings (serverName: www.microsoft.com, verifyPeerCertInNames, alpn/fromMitM, fingerprint).
+    # Not supported in Clash; kept as comment.
+
+  - name: tls-repack-google
+    type: direct
+    # original tlsSettings with serverName www.google.com, verifyPeerCertInNames, alpn/fromMitM, fingerprint: chrome
+
+  - name: tls-repack-meta
+    type: direct
+    # original tlsSettings for meta/facebook/whatsapp family (MitM details removed)
+
+  - name: tls-repack-fastly
+    type: direct
+    # original tlsSettings for fastly / reddit / x
+
+  - name: dns-out
+    type: dns
+    # original Xray dns outbound: {"nonIPQuery":"skip","network":"tcp","address":"1.1.1.1","port":53}
+    # Clash 'dns' proxy only models some behavior; sockopt.dialerProxy is Xray-only and can't be applied here.
+
+  # fragmentation / chaining proxies
+  - name: super-fragment
+    type: direct
+    # original fragment: { "packets":"tlshello", "length":"6", "interval":"0" }  (Xray-only)
+
+  - name: chain1-fragment
+    type: direct
+    # original fragment chain1: { "packets":"1-3", "length":"517", "interval":"1" }
+    # had sockopt.dialerProxy: "chain2-fragment" (Xray-only chained dialer proxy)
+
+  - name: chain2-fragment
+    type: direct
+    # original chain2 fragment { "packets":"1-1", "length":"1", "interval":"2" }
+
+  - name: udp-noisesv4
+    type: direct
+    # original had many "noises" items to obfuscate UDP (Xray-only)
+
+  - name: udp-noisesv6
+    type: direct
+    # original had many "noises" items to obfuscate UDP (Xray-only)
+
+# Proxy groups (small default group to allow rules to reference a group)
+proxy-groups:
+  - name: Default
+    type: select
+    proxies:
+      - direct
+      - tls-repack-google
+      - tls-repack-meta
+      - tls-repack-fastly
+      - super-fragment
+      - chain1-fragment
+      - chain2-fragment
+      - udp-noisesv4
+      - udp-noisesv6
+      - block
+
+# Rules
+# Note: Xray uses inboundTag conditions and exact outboundTag mapping.
+# Clash does not support inboundTag-based routing in the same way; we approximate:
+rules:
+  # DNS in / dokodemo-door -> dns-out
+  # Original: inboundTag dns-in -> dns-out
+  - SRC-IP-CIDR,127.0.0.1/32,dns-out     # best-effort placeholder (no direct inboundTag mapping)
+
+  # socks-in port 53 -> dns-out (approximate)
+  - DST-PORT,53,dns-out
+
+  # dns-query inbound -> tls-repack-dns (original used inboundTag: dns-query). Approximate via domain match.
+  - DOMAIN-SUFFIX,dns-query,tls-repack-dns
+
+  # Block geosite:category-ads-all (translated to generic domain group)
+  - GEOIP,private,direct          # keep private IPs direct (original had geosite:private -> direct)
+  - DOMAIN-KEYWORD,ads,block      # heuristic: block domains with "ads" in name -> block
+  # (If you have exact geosite lists, replace above with GEOSITE entries supported by your FlClash build)
+
+  # Block specified IP ranges (original contained explicit IPs)
+  - IP-CIDR,10.10.34.0/24,block
+  - IP-CIDR,2001:4188:2:600:10:10:34:36/128,block
+  - IP-CIDR,2001:4188:2:600:10:10:34:35/128,block
+  - IP-CIDR,2001:4188:2:600:10:10:34:34/128,block
+
+  # Direct for private/geosite category-ir
+  - DOMAIN-SUFFIX,local,direct
+  - GEOIP,ir,direct
+
+  # Fragment chain: for Cloudflare/Cloudfront IPs over TCP -> chain1-fragment (approximation)
+  - GEOIP,cloudflare,chain1-fragment
+  - GEOIP,cloudfront,chain1-fragment
+
+  # Redirect specific traffic to local dokodemo mitm handlers (approximation):
+  - DOMAIN-SUFFIX,googlevideo.com,redirect-out-h11
+  - DOMAIN-SUFFIX,youtube.com,redirect-out-h211
+  - DOMAIN-SUFFIX,facebook.com,redirect-out-h211
+  - DOMAIN-SUFFIX,reddit.com,redirect-out-h211
+  - DOMAIN-SUFFIX,x.com,redirect-out-h211
+
+  # TLS repack rules when traffic arrives at the local TLS-decrypt inbounds (approximate)
+  # Original: inboundTag tls-decrypt-h11/tls-decrypt-h211 used to route to tls-repack-google/meta/fastly
+  - DOMAIN-SUFFIX,youtube.com,tls-repack-google
+  - DOMAIN-SUFFIX,googlevideo.com,tls-repack-google
+  - DOMAIN-SUFFIX,facebook.com,tls-repack-meta
+  - DOMAIN-SUFFIX,instagram.com,tls-repack-meta
+  - DOMAIN-SUFFIX,fastly.com,tls-repack-fastly
+  - DOMAIN-SUFFIX,reddit.com,tls-repack-fastly
+
+  # UDP noise rules: send UDP port 443 to udp-noises* proxies (approximation)
+  - NETWORK,udp,udp-noisesv4,udp-noisesv6
+
+  # Default fallbacks
+  - MATCH,Default
