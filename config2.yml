@@ -1,0 +1,80 @@
+mixed-port: 7890
+allow-lan: true
+mode: rule
+log-level: warning
+
+dns:
+  enable: true
+  ipv6: true
+  listen: 0.0.0.0:1053
+  enhanced-mode: fake-ip
+  nameserver:
+    - 8.8.8.8
+  hosts:
+    "ext:geosite_c4u.dat:category-ads-all": 127.0.0.1
+    "ext:geosite_c4u.dat:nsfw": 127.0.0.1
+    "ext:geosite_c4u.dat:malware": 127.0.0.1
+    "ext:geosite_c4u.dat:phishing": 127.0.0.1
+    "ext:geosite_c4u.dat:cryptominers": 127.0.0.1
+    "googleapis.cn": googleapis.com
+
+proxies:
+  - name: proxy
+    type: wireguard
+    server: 162.159.192.1
+    port: 500
+    ip: 172.16.0.2
+    private-key: sOJnwYI2i5Fy95pRj3jIOAfnvwDXfHhs9iJ/LmUNI1I=
+    public-key: bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=
+    mtu: 1280
+    reserved: [125, 49, 153]
+    udp: true
+    # ⚠ Unsupported in Clash (only in Xray):
+    # wnoise: quic
+    # wnoisecount: 5
+    # wnoisedelay: 5
+    # wpayloadsize: 40-90
+
+  - name: direct
+    type: direct
+
+  - name: block
+    type: reject
+
+proxy-groups:
+  - name: Default
+    type: select
+    proxies:
+      - proxy
+      - direct
+      - block
+
+rules:
+  # DNS requests to 8.8.8.8 go through proxy
+  - IP-CIDR,8.8.8.8/32,proxy,no-resolve
+  - DST-PORT,53,proxy
+
+  # Direct for .ir and private sites
+  - DOMAIN-REGEX,.*\.ir$,direct
+  - DOMAIN-REGEX,.*\.xn--mgba3a4f16a$,direct
+  - GEOSITE,ir,direct
+  - GEOSITE,private,direct
+  - GEOIP,ir,direct
+  - GEOIP,private,direct
+
+  # Block Ads / NSFW / Malware / Phishing
+  - GEOSITE,category-ads-all,block
+  - GEOSITE,nsfw,block
+  - GEOSITE,malware,block
+  - GEOSITE,phishing,block
+  - GEOSITE,cryptominers,block
+  - GEOIP,malware,block
+  - GEOIP,phishing,block
+
+  # Block custom IPs
+  - IP-CIDR,10.10.34.34/32,block,no-resolve
+  - IP-CIDR,10.10.34.35/32,block,no-resolve
+  - IP-CIDR,10.10.34.36/32,block,no-resolve
+
+  # Final fallback
+  - MATCH,Default
