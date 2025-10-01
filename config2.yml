@@ -57,19 +57,13 @@ rules:
   # Direct for .ir and private sites
   - DOMAIN-REGEX,.*\.ir$,direct
   - DOMAIN-REGEX,.*\.xn--mgba3a4f16a$,direct
-  - GEOSITE,ir,direct
+  - GEOSITE,category-ir,direct
   - GEOSITE,private,direct
   - GEOIP,ir,direct
   - GEOIP,private,direct
 
   # Block Ads / NSFW / Malware / Phishing
   - GEOSITE,category-ads-all,block
-  - GEOSITE,nsfw,block
-  - GEOSITE,malware,block
-  - GEOSITE,phishing,block
-  - GEOSITE,cryptominers,block
-  - GEOIP,malware,block
-  - GEOIP,phishing,block
 
   # Block custom IPs
   - IP-CIDR,10.10.34.34/32,block,no-resolve
