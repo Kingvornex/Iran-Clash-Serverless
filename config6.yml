@@ -1,0 +1,277 @@
+# Super-heavy Mihomo / Clash.Meta config: load-balance + fragmentation chains + udp-noise + fake-ip DNS
+mixed-port: 7890
+allow-lan: true
+bind-address: 0.0.0.0
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9090
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - geosite:category-ads-all
+    - domain:ir
+  nameserver:
+    - https://cloudflare-dns.com/dns-query
+    - 1.1.1.1
+    - 1.0.0.1
+  fallback:
+    - 1.0.0.1
+  default-nameserver: 
+    - 1.1.1.1
+  hosts:
+    one.one.one.one:
+      - 1.1.1.1
+      - 1.0.0.1
+      - 2606:4700:4700::1111
+      - 2606:4700:4700::1001
+    cloudflare-dns.com:
+      - 1.1.1.1
+      - 1.0.0.1
+      - 2606:4700:4700::1111
+      - 2606:4700:4700::1001
+
+# many proxies emulating fragment profiles and some normal nodes (placeholders):
+proxies:
+  - name: frag-hello-1
+    type: direct
+    tcp-fragment:
+      packets: "tlshello"
+      length: "6"
+      interval: "0"
+      maxSplit: 6
+
+  - name: frag-small-1
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "1"
+      interval: "1"
+      maxSplit: 517
+
+  - name: frag-small-2
+    type: direct
+    tcp-fragment:
+      packets: "1-2"
+      length: "16"
+      interval: "1"
+      maxSplit: 400
+
+  - name: frag-mid-1
+    type: direct
+    tcp-fragment:
+      packets: "2-4"
+      length: "64"
+      interval: "1"
+      maxSplit: 200
+
+  - name: frag-large-1
+    type: direct
+    tcp-fragment:
+      packets: "1-3"
+      length: "517"
+      interval: "1"
+      maxSplit: 517
+
+  - name: frag-chain-skip
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "130"
+      interval: "190"
+      maxSplit: 4
+    # if your build supports chaining, you can configure dialerProxy on this proxy to point to frag-chain-next
+
+  - name: frag-chain-next
+    type: direct
+    tcp-fragment:
+      packets: "2-4"
+      length: "1"
+      interval: "1"
+      maxSplit: 130
+
+  - name: frag-chain-final
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "1"
+      interval: "1"
+      maxSplit: 517
+
+  - name: udp-noises-v4
+    type: direct
+    udp-noise:
+      targetStrategy: ForceIP
+      noises:
+        - type: rand
+          packet: 1250
+          delay: 10
+          applyTo: ipv4
+        - type: rand
+          packet: 1250
+          delay: 10
+          applyTo: ipv4
+        - type: rand
+          packet: 1250
+          delay: 10
+          applyTo: ipv4
+
+  - name: udp-noises-v6
+    type: direct
+    udp-noise:
+      targetStrategy: ForceIP
+      noises:
+        - type: rand
+          packet: 1230
+          delay: 10
+          applyTo: ipv6
+        - type: rand
+          packet: 1230
+          delay: 10
+          applyTo: ipv6
+
+  - name: direct-out
+    type: direct
+
+  - name: block-out
+    type: reject
+
+  # Example external proxies (placeholders) that you can replace with shadowsocks/vmess/trojan etc.
+  - name: remote-vmess-1
+    type: vmess
+    server: example.com
+    port: 443
+    uuid: REPLACE-UUID-1
+    alterId: 0
+    cipher: auto
+    tls: true
+    network: ws
+    ws-opts:
+      path: "/"
+      headers:
+        Host: example.com
+
+  - name: remote-vmess-2
+    type: vmess
+    server: example2.com
+    port: 443
+    uuid: REPLACE-UUID-2
+    alterId: 0
+    cipher: auto
+    tls: true
+    network: ws
+    ws-opts:
+      path: "/"
+      headers:
+        Host: example2.com
+
+# load-balance and advanced proxy groups
+proxy-groups:
+  - name: FRAG_LB_ROUND
+    type: load-balance
+    strategy: round-robin
+    disable-udp: false
+    interval: 300
+    url: http://www.gstatic.com/generate_204
+    proxies:
+      - frag-hello-1
+      - frag-small-1
+      - frag-small-2
+      - frag-mid-1
+      - frag-large-1
+
+  - name: FRAG_CHAIN_LB
+    type: load-balance
+    strategy: consistent-hashing
+    disable-udp: false
+    interval: 180
+    url: http://www.gstatic.com/generate_204
+    proxies:
+      - frag-chain-skip
+      - frag-chain-next
+      - frag-chain-final
+
+  - name: UDP_NOISES_GROUP
+    type: load-balance
+    strategy: round-robin
+    disable-udp: false
+    proxies:
+      - udp-noises-v4
+      - udp-noises-v6
+
+  - name: REMOTE_FALLBACKS
+    type: load-balance
+    strategy: sticky-sessions
+    disable-udp: false
+    interval: 60
+    url: http://www.gstatic.com/generate_204
+    proxies:
+      - remote-vmess-1
+      - remote-vmess-2
+      - direct-out
+
+  - name: SUPER_CHAIN_SELECT
+    type: select
+    proxies:
+      - FRAG_LB_ROUND
+      - FRAG_CHAIN_LB
+      - REMOTE_FALLBACKS
+      - direct-out
+
+  - name: YT_HEAVY
+    type: load-balance
+    strategy: consistent-hashing
+    disable-udp: false
+    interval: 45
+    url: http://www.gstatic.com/generate_204
+    proxies:
+      - FRAG_CHAIN_LB
+      - FRAG_LB_ROUND
+      - REMOTE_FALLBACKS
+
+  - name: DEFAULT_GROUP
+    type: select
+    proxies:
+      - SUPER_CHAIN_SELECT
+      - UDP_NOISES_GROUP
+      - direct-out
+      - block-out
+
+# rules - aggressive, route heavy services through fragment/load-balance
+rules:
+  # DNS queries to local resolver
+  - DST-PORT,53,direct-out
+
+  # block common ad domains (coarse)
+  - GEOIP,private,direct-out
+  - DOMAIN-KEYWORD,ads,block-out
+
+  # Force YouTube / Google video through YT_HEAVY LB (heavy fragmentation + chain)
+  - DOMAIN-SUFFIX,youtube.com,YT_HEAVY
+  - DOMAIN-SUFFIX,googlevideo.com,YT_HEAVY
+  - DOMAIN-SUFFIX,youtu.be,YT_HEAVY
+
+  # Socials / CDN heavy targets -> frag chain LB
+  - DOMAIN-SUFFIX,facebook.com,FRAG_CHAIN_LB
+  - DOMAIN-SUFFIX,instagram.com,FRAG_CHAIN_LB
+  - DOMAIN-SUFFIX,reddit.com,FRAG_CHAIN_LB
+  - DOMAIN-SUFFIX,cdn.cloudflare.com,FRAG_CHAIN_LB
+
+  # Force QUIC / UDP port traffic to UDP noise group
+  - NETWORK,udp,UDP_NOISES_GROUP
+  - DST-PORT,443,UDP_NOISES_GROUP
+  - DST-PORT,2053,UDP_NOISES_GROUP
+  - DST-PORT,8443,UDP_NOISES_GROUP
+
+  # Cloudflare / Cloudfront IP ranges (use cloud provider GEO groups if available)
+  - GEOIP,cloudflare,FRAG_CHAIN_LB
+  - GEOIP,cloudfront,FRAG_CHAIN_LB
+
+  # Final defaults
+  - MATCH,DEFAULT_GROUP
