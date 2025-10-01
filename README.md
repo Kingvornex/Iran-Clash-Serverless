@@ -221,3 +221,144 @@ Special flows:
  - Ads / private IPs => block-out or direct-out (depending on rule)
  - Cloudflare/Cloudfront GEOIP => FRAG_CHAIN_LB (apply fragmentation chain)
  - MATCH => DEFAULT_GROUP (tries SUPER_CHAIN_SELECT -> UDP_NOISES -> direct -> block)
+
+# clash meta rule types:
+Clash.Meta supports a comprehensive set of rule types that enable users to route network traffic based on various conditions such as domain names, IP addresses, ports, processes, and geographic location. Here's a detailed overview of the supported rule types:
+
+---
+
+### 🔧 Supported Rule Types in Clash.Meta
+
+1. **DOMAIN**
+   Matches exact domain names.
+   Example:
+
+   ```yaml
+   DOMAIN,example.com,DIRECT
+   ```
+
+2. **DOMAIN-SUFFIX**
+   Matches domains with a specific suffix.
+   Example:
+
+   ```yaml
+   DOMAIN-SUFFIX,example.com,DIRECT
+   ```
+
+3. **DOMAIN-KEYWORD**
+   Matches domains containing a specific keyword.
+   Example:
+
+   ```yaml
+   DOMAIN-KEYWORD,example,DIRECT
+   ```
+
+4. **GEOIP**
+   Matches based on the geographic location of the IP address.
+   Example:
+
+   ```yaml
+   GEOIP,CN,DIRECT
+   ```
+
+5. **GEOIP6**
+   Matches based on the geographic location of the IPv6 address.
+   Example:
+
+   ```yaml
+   GEOIP6,CN,DIRECT
+   ```
+
+6. **IP-CIDR**
+   Matches based on the destination IPv4 address.
+   Example:
+
+   ```yaml
+   IP-CIDR,192.168.1.0/24,DIRECT
+   ```
+
+7. **IP-CIDR6**
+   Matches based on the destination IPv6 address.
+   Example:
+
+   ```yaml
+   IP-CIDR6,2001:db8::/32,DIRECT
+   ```
+
+8. **SRC-IP-CIDR**
+   Matches based on the source IPv4 address.
+   Example:
+
+   ```yaml
+   SRC-IP-CIDR,192.168.1.100/32,DIRECT
+   ```
+
+9. **SRC-IP-CIDR6**
+   Matches based on the source IPv6 address.
+   Example:
+
+   ```yaml
+   SRC-IP-CIDR6,2001:db8::1/128,DIRECT
+   ```
+
+10. **DST-PORT**
+    Matches based on the destination port.
+    Example:
+
+    ```yaml
+    DST-PORT,80,DIRECT
+    ```
+
+11. **SRC-PORT**
+    Matches based on the source port.
+    Example:
+
+    ```yaml
+    SRC-PORT,8080,DIRECT
+    ```
+
+12. **PROCESS-NAME**
+    Matches based on the name of the process sending the packet.
+    Example:
+
+    ```yaml
+    PROCESS-NAME,chrome,DIRECT
+    ```
+
+13. **PROCESS-PATH**
+    Matches based on the path of the process sending the packet.
+    Example:
+
+    ```yaml
+    PROCESS-PATH,/usr/bin/chrome,DIRECT
+    ```
+
+14. **RULE-SET**
+    Matches based on a set of external rules provided by a rule provider.
+    Example:
+
+    ```yaml
+    RULE-SET,google,DIRECT
+    ```
+
+15. **SCRIPT**
+    Matches based on the evaluation of a script.
+    Example:
+
+    ```yaml
+    SCRIPT,check_https,DIRECT
+    ```
+
+16. **MATCH**
+    A catch-all rule that matches any traffic not matched by previous rules.
+    Example:
+
+    ```yaml
+    MATCH,REJECT
+    ```
+
+---
+
+These rule types allow for granular control over network traffic, enabling users to implement complex routing logic based on various conditions. For more detailed information and examples, you can refer to the official Clash.Meta documentation. ([GitHub][1])
+
+[1]: https://github.com/djoeni/Clash.Meta?utm_source=chatgpt.com "djoeni/Clash.Meta: A rule-based tunnel in Go. - GitHub"
