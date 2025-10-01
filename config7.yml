@@ -1,0 +1,372 @@
+# Advanced Clash.Meta config — enhanced from your super-heavy config
+# Replace placeholders (REPLACE-UUID-*, example.com, example2.com) before use.
+
+mixed-port: 7890
+redir-port: 7892            # optional: for transparent redirection (TProxy/iptables)
+allow-lan: true
+bind-address: 0.0.0.0
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9090
+ipv6: true
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+  store-resolve-cache: true     # preserve DNS cache between restarts (if supported)
+
+# Optional system-wide TUN mode (enable if your client/binary supports it).
+# If you don't want TUN, remove or set enable: false.
+tun:
+  enable: false
+  stack: system
+  dns-hijack:
+    - 198.18.0.1:53
+  auto-route: true
+  auto-detect-interface: true
+  device-name: ClashTun0
+
+# DNS — fake-ip + DoH + careful fallbacks
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.0/15        # widen a bit for more mappings
+  fake-ip-filter:
+    - geosite:category-ads-all
+    - domain:ir
+    - domain-suffix:tracking
+  nameserver:
+    - https://cloudflare-dns.com/dns-query
+    - https://dns.google/dns-query
+    - 1.1.1.1
+    - 1.0.0.1
+  fallback:
+    - 1.0.0.1
+    - 8.8.8.8
+  default-nameserver:
+    - 1.1.1.1
+  hosts:
+    one.one.one.one:
+      - 1.1.1.1
+      - 1.0.0.1
+      - 2606:4700:4700::1111
+      - 2606:4700:4700::1001
+    cloudflare-dns.com:
+      - 1.1.1.1
+      - 1.0.0.1
+      - 2606:4700:4700::1111
+      - 2606:4700:4700::1001
+  enhanced-mode-except:
+    - domain-suffix:lan   # example: do not fake-ip for local domains
+
+# Proxies: fragmentation profiles, udp-noise, remote nodes
+proxies:
+  # TCP fragmentation presets (tune lengths/intervals per target network)
+  - name: frag-hello-1
+    type: direct
+    tcp-fragment:
+      packets: "tlshello"
+      length: "6"
+      interval: "0"
+      maxSplit: 6
+
+  - name: frag-small-1
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "1"
+      interval: "1"
+      maxSplit: 517
+
+  - name: frag-small-2
+    type: direct
+    tcp-fragment:
+      packets: "1-2"
+      length: "16"
+      interval: "1"
+      maxSplit: 400
+
+  - name: frag-mid-1
+    type: direct
+    tcp-fragment:
+      packets: "2-4"
+      length: "64"
+      interval: "1"
+      maxSplit: 200
+
+  - name: frag-large-1
+    type: direct
+    tcp-fragment:
+      packets: "1-3"
+      length: "517"
+      interval: "1"
+      maxSplit: 517
+
+  # Fragmentation chain — these entries actually chain: frag-chain-skip dials through frag-chain-next, etc.
+  - name: frag-chain-skip
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "130"
+      interval: "190"
+      maxSplit: 4
+    # Optional: use dialer-proxy to actually route through the next chain link
+    dialer-proxy: frag-chain-next
+
+  - name: frag-chain-next
+    type: direct
+    tcp-fragment:
+      packets: "2-4"
+      length: "1"
+      interval: "1"
+      maxSplit: 130
+    dialer-proxy: frag-chain-final
+
+  - name: frag-chain-final
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "1"
+      interval: "1"
+      maxSplit: 517
+
+  # UDP noises — create cover traffic for UDP/QUIC flows (ipv4 and ipv6)
+  - name: udp-noises-v4
+    type: direct
+    udp-noise:
+      targetStrategy: ForceIP
+      noises:
+        - type: rand
+          packet: 1250
+          delay: 10
+          applyTo: ipv4
+        - type: rand
+          packet: 1250
+          delay: 10
+          applyTo: ipv4
+
+  - name: udp-noises-v6
+    type: direct
+    udp-noise:
+      targetStrategy: ForceIP
+      noises:
+        - type: rand
+          packet: 1230
+          delay: 10
+          applyTo: ipv6
+        - type: rand
+          packet: 1230
+          delay: 10
+          applyTo: ipv6
+
+  - name: direct-out
+    type: direct
+
+  - name: block-out
+    type: reject
+
+  # External secure tunnels (replace with your real nodes)
+  - name: remote-vmess-1
+    type: vmess
+    server: example.com
+    port: 443
+    uuid: REPLACE-UUID-1
+    alterId: 0
+    cipher: auto
+    tls: true
+    network: ws
+    ws-opts:
+      path: "/"
+      headers:
+        Host: example.com
+    # health check: optional (if supported)
+    # fast-open: true
+
+  - name: remote-vmess-2
+    type: vmess
+    server: example2.com
+    port: 443
+    uuid: REPLACE-UUID-2
+    alterId: 0
+    cipher: auto
+    tls: true
+    network: ws
+    ws-opts:
+      path: "/"
+      headers:
+        Host: example2.com
+
+  # Optional authenticated direct fallback (example)
+  - name: auth-direct
+    type: http
+    server: 1.2.3.4
+    port: 8080
+    username: user
+    password: pass
+    tls: false
+
+# Proxy groups with improved resilience & health logic
+proxy-groups:
+  - name: FRAG_LB_ROUND
+    type: load-balance
+    strategy: round-robin
+    disable-udp: false
+    interval: 300
+    url: http://www.gstatic.com/generate_204
+    tolerance: 3            # tolerate N failures before switching (if supported)
+    probes:
+      - path: /generate_204
+        url: http://www.gstatic.com
+        interval: 120
+        timeout: 6
+    proxies:
+      - frag-hello-1
+      - frag-small-1
+      - frag-small-2
+      - frag-mid-1
+      - frag-large-1
+
+  - name: FRAG_CHAIN_LB
+    type: load-balance
+    strategy: consistent-hashing
+    disable-udp: false
+    interval: 180
+    url: http://www.gstatic.com/generate_204
+    probes:
+      - url: http://www.gstatic.com/generate_204
+        interval: 90
+        timeout: 6
+    proxies:
+      - frag-chain-skip
+      - frag-chain-next
+      - frag-chain-final
+
+  - name: UDP_NOISES_GROUP
+    type: load-balance
+    strategy: round-robin
+    disable-udp: false
+    interval: 30
+    probes: []
+    proxies:
+      - udp-noises-v4
+      - udp-noises-v6
+
+  - name: REMOTE_FALLBACKS
+    type: load-balance
+    strategy: sticky-sessions
+    disable-udp: false
+    interval: 60
+    url: http://www.gstatic.com/generate_204
+    probes:
+      - url: http://www.gstatic.com/generate_204
+        interval: 45
+        timeout: 8
+    proxies:
+      - remote-vmess-1
+      - remote-vmess-2
+      - direct-out
+
+  # Selection: super chain chooses best available path ordering
+  - name: SUPER_CHAIN_SELECT
+    type: select
+    proxies:
+      - FRAG_LB_ROUND
+      - FRAG_CHAIN_LB
+      - REMOTE_FALLBACKS
+      - direct-out
+
+  # A specialized group for heavy video (sticky + consistent hashing)
+  - name: YT_HEAVY
+    type: load-balance
+    strategy: consistent-hashing
+    disable-udp: false
+    interval: 45
+    url: http://www.gstatic.com/generate_204
+    probes:
+      - url: http://www.gstatic.com/generate_204
+        interval: 30
+        timeout: 5
+    sticky: true
+    proxies:
+      - FRAG_CHAIN_LB
+      - FRAG_LB_ROUND
+      - REMOTE_FALLBACKS
+
+  # Recovery & reconciliation: if groups fail, attempt auto-heal
+  - name: AUTO_HEAL
+    type: select
+    proxies:
+      - REMOTE_FALLBACKS
+      - direct-out
+      - block-out
+
+  - name: DEFAULT_GROUP
+    type: select
+    proxies:
+      - SUPER_CHAIN_SELECT
+      - UDP_NOISES_GROUP
+      - direct-out
+      - block-out
+
+# Rules: more granular, explicit ordering, and safeties
+rules:
+  # local DNS
+  - DST-PORT,53,direct-out
+
+  # Local and private ranges -> direct
+  - GEOIP,private,direct-out
+
+  # Block ad/tracker domains aggressively (coarse)
+  - DOMAIN-KEYWORD,ads,block-out
+  - DOMAIN-KEYWORD,adsystem,block-out
+  - DOMAIN-SUFFIX, doubleclick.net,block-out
+
+  # Force YouTube / Google video through YT_HEAVY (heavy fragmentation + chain)
+  - DOMAIN-SUFFIX,youtube.com,YT_HEAVY
+  - DOMAIN-SUFFIX,googlevideo.com,YT_HEAVY
+  - DOMAIN-SUFFIX,youtu.be,YT_HEAVY
+
+  # Socials / CDN heavy targets -> frag chain LB
+  - DOMAIN-SUFFIX,facebook.com,FRAG_CHAIN_LB
+  - DOMAIN-SUFFIX,instagram.com,FRAG_CHAIN_LB
+  - DOMAIN-SUFFIX,reddit.com,FRAG_CHAIN_LB
+  - DOMAIN-SUFFIX,cdn.cloudflare.com,FRAG_CHAIN_LB
+  - DOMAIN-KEYWORD,cdn,FRAG_CHAIN_LB
+
+  # Force QUIC / UDP port traffic to UDP noise group (protects QUIC detection)
+  - NETWORK,udp,UDP_NOISES_GROUP
+  - DST-PORT,443,UDP_NOISES_GROUP
+  - DST-PORT,2053,UDP_NOISES_GROUP
+  - DST-PORT,8443,UDP_NOISES_GROUP
+
+  # Cloud provider IP ranges routed through frag chain (if GEOIP available)
+  - GEOIP,cloudflare,FRAG_CHAIN_LB
+  - GEOIP,cloudfront,FRAG_CHAIN_LB
+  - GEOIP,google,FRAG_CHAIN_LB
+
+  # Small latency-sensitive ports -> prefer direct / REMOTE_FALLBACKS
+  - DST-PORT,123,direct-out      # NTP
+  - DST-PORT,3478,REMOTE_FALLBACKS  # STUN
+
+  # Local CDN / streaming accelerators -> prefer local direct when possible
+  - DOMAIN-SUFFIX,cdn.local,direct-out
+
+  # Reconnect-heavy / retry: let AUTO_HEAL try to recover broken sessions
+  - MATCH,AUTO_HEAL
+
+  # Final fallback (keeps block-out as last resort)
+  - MATCH,DEFAULT_GROUP
+
+# Optional QoS / rate limits (client dependent) — commented out
+# rate-limit:
+#   upload: 0         # kb/s, 0 = unlimited
+#   download: 0
+
+# Useful tips printed to logs/dashboard (client may show these)
+metadata:
+  maintainer: "You"
+  purpose: "Advanced fragmentation + UDP noise + fake-IP DNS + resilient load-balancing"
+
+# End of config
