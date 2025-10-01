@@ -1,0 +1,73 @@
+# MiHoYo / Clash Style Config
+# Heavy Fragmentation Example
+
+port: 10808
+socks-port: 10808
+redir-port: 0
+allow-lan: false
+mode: Rule
+log-level: silent
+ipv6: false
+dns:
+  enable: true
+  listen: 127.0.0.1:53
+  enhanced-mode: fake-ip
+  nameserver:
+    - 172.67.73.38
+    - 104.19.155.92
+    - 172.67.73.163
+    - 104.18.155.42
+    - 104.16.124.175
+    - 104.16.248.249
+    - 104.16.249.249
+    - 104.26.13.8
+  fallback:
+    - 1.1.1.1
+  default-nameserver:
+    - 8.8.8.8
+  fake-ip-range: 198.18.0.1/16
+
+proxies:
+  - name: "Fragment-Out"
+    type: direct
+    udp: true
+    use-dns: true
+    fragment:
+      packets: 1-1
+      length: 1-3
+      interval: 5-10
+
+  - name: "FakeProxy-Out"
+    type: vmess
+    server: google.com
+    port: 443
+    uuid: "UUID"
+    alterId: 0
+    cipher: auto
+    tls: true
+    network: ws
+    ws-path: "/"
+    ws-headers:
+      Host: google.com
+    udp: true
+    fragment:
+      packets: 1-1
+      length: 1-3
+      interval: 5-10
+
+proxy-groups:
+  - name: "LoadBalance"
+    type: load-balance
+    proxies:
+      - Fragment-Out
+      - FakeProxy-Out
+    url: "http://www.google.com/generate_204"
+    interval: 300
+    tolerance: 50
+
+rules:
+  - DOMAIN-SUFFIX,google.com,LoadBalance
+  - DOMAIN-KEYWORD,youtube,LoadBalance
+  - DOMAIN-KEYWORD,ytimg.com,LoadBalance
+  - GEOIP,CN,DIRECT
+  - MATCH,LoadBalance
