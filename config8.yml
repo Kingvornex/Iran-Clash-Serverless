@@ -1,0 +1,256 @@
+# 🌟 Super-Advanced Clash.Meta Config
+# 🎯 Purpose: heavy fragmentation + UDP noise + fake-IP DNS + resilient load-balancing
+# 📝 Replace placeholder UUIDs & servers before use
+
+mixed-port: 7890       # 🖧 Main port for HTTP/SOCKS
+redir-port: 7892       # 🔄 Optional: system-wide TProxy / redirection
+allow-lan: true        # 🏠 Allow LAN devices to use the proxy
+bind-address: 0.0.0.0
+mode: rule             # 📜 Traffic rules mode
+log-level: info
+external-controller: 127.0.0.1:9090
+ipv6: true
+
+# 🧩 Profile settings
+profile:
+  store-selected: true       # 💾 Remember last selected proxy
+  store-fake-ip: true        # 🌐 Save fake-IP DNS mappings
+  store-resolve-cache: true  # 🗂 Preserve DNS cache between restarts
+
+# 🧭 DNS Settings
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.0/15
+  fake-ip-filter:
+    - geosite:category-ads-all   # 🚫 Block ads
+    - domain:ir                  # 🇮🇷 Local domains
+    - domain-suffix:tracking     # 🕵️ Trackers
+  nameserver:
+    - https://cloudflare-dns.com/dns-query
+    - https://dns.google/dns-query
+    - 1.1.1.1
+    - 1.0.0.1
+  fallback:
+    - 1.0.0.1
+    - 8.8.8.8
+  default-nameserver:
+    - 1.1.1.1
+  hosts:
+    one.one.one.one:
+      - 1.1.1.1
+      - 1.0.0.1
+      - 2606:4700:4700::1111
+      - 2606:4700:4700::1001
+    cloudflare-dns.com:
+      - 1.1.1.1
+      - 1.0.0.1
+      - 2606:4700:4700::1111
+      - 2606:4700:4700::1001
+
+# ⚡ Proxies
+proxies:
+  # 🧩 TCP Fragmentation proxies
+  - name: frag-hello-1
+    type: direct
+    tcp-fragment:
+      packets: "tlshello"
+      length: "6"
+      interval: "0"
+      maxSplit: 6
+
+  - name: frag-small-1
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "1"
+      interval: "1"
+      maxSplit: 517
+
+  - name: frag-mid-1
+    type: direct
+    tcp-fragment:
+      packets: "2-4"
+      length: "64"
+      interval: "1"
+      maxSplit: 200
+
+  # 🔗 Fragmentation chain — chaining example
+  - name: frag-chain-skip
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "130"
+      interval: "190"
+      maxSplit: 4
+    dialer-proxy: frag-chain-next  # ➡️ Chain to next frag proxy
+
+  - name: frag-chain-next
+    type: direct
+    tcp-fragment:
+      packets: "2-4"
+      length: "1"
+      interval: "1"
+      maxSplit: 130
+    dialer-proxy: frag-chain-final
+
+  - name: frag-chain-final
+    type: direct
+    tcp-fragment:
+      packets: "1-1"
+      length: "1"
+      interval: "1"
+      maxSplit: 517
+
+  # 🌊 UDP noise proxies — disguise QUIC/UDP traffic
+  - name: udp-noises-v4
+    type: direct
+    udp-noise:
+      targetStrategy: ForceIP
+      noises:
+        - type: rand
+          packet: 1250
+          delay: 10
+          applyTo: ipv4
+
+  - name: udp-noises-v6
+    type: direct
+    udp-noise:
+      targetStrategy: ForceIP
+      noises:
+        - type: rand
+          packet: 1230
+          delay: 10
+          applyTo: ipv6
+
+  # 🟢 Direct / ❌ Block
+  - name: direct-out
+    type: direct
+
+  - name: block-out
+    type: reject
+
+  # 🌐 Remote secure proxies (placeholders)
+  - name: remote-vmess-1
+    type: vmess
+    server: example.com
+    port: 443
+    uuid: REPLACE-UUID-1
+    alterId: 0
+    cipher: auto
+    tls: true
+    network: ws
+    ws-opts:
+      path: "/"
+      headers:
+        Host: example.com
+
+  - name: remote-vmess-2
+    type: vmess
+    server: example2.com
+    port: 443
+    uuid: REPLACE-UUID-2
+    alterId: 0
+    cipher: auto
+    tls: true
+    network: ws
+    ws-opts:
+      path: "/"
+      headers:
+        Host: example2.com
+
+# 🎛️ Proxy Groups
+proxy-groups:
+  - name: FRAG_LB_ROUND
+    type: load-balance
+    strategy: round-robin
+    interval: 300
+    proxies:
+      - frag-hello-1
+      - frag-small-1
+      - frag-mid-1
+
+  - name: FRAG_CHAIN_LB
+    type: load-balance
+    strategy: consistent-hashing
+    interval: 180
+    proxies:
+      - frag-chain-skip
+      - frag-chain-next
+      - frag-chain-final
+
+  - name: UDP_NOISES_GROUP
+    type: load-balance
+    strategy: round-robin
+    proxies:
+      - udp-noises-v4
+      - udp-noises-v6
+
+  - name: REMOTE_FALLBACKS
+    type: load-balance
+    strategy: sticky-sessions
+    interval: 60
+    proxies:
+      - remote-vmess-1
+      - remote-vmess-2
+      - direct-out
+
+  - name: SUPER_CHAIN_SELECT
+    type: select
+    proxies:
+      - FRAG_LB_ROUND
+      - FRAG_CHAIN_LB
+      - REMOTE_FALLBACKS
+      - direct-out
+
+  - name: YT_HEAVY
+    type: load-balance
+    strategy: consistent-hashing
+    sticky: true
+    proxies:
+      - FRAG_CHAIN_LB
+      - FRAG_LB_ROUND
+      - REMOTE_FALLBACKS
+
+  - name: DEFAULT_GROUP
+    type: select
+    proxies:
+      - SUPER_CHAIN_SELECT
+      - UDP_NOISES_GROUP
+      - direct-out
+      - block-out
+
+# 📜 Rules — explicit & user-friendly
+rules:
+  # DNS traffic
+  - DST-PORT,53,direct-out       # 🟢 Local DNS
+
+  # Private / LAN ranges
+  - GEOIP,private,direct-out     # 🏠 Local / private IPs
+
+  # Ads / trackers
+  - DOMAIN-KEYWORD,ads,block-out   # 🚫 Block ads
+  - DOMAIN-KEYWORD,tracking,block-out
+
+  # YouTube / Google video
+  - DOMAIN-SUFFIX,youtube.com,YT_HEAVY  # 🎥 Video streaming heavy
+  - DOMAIN-SUFFIX,googlevideo.com,YT_HEAVY
+  - DOMAIN-SUFFIX,youtu.be,YT_HEAVY
+
+  # Socials / CDN heavy
+  - DOMAIN-SUFFIX,facebook.com,FRAG_CHAIN_LB   # 📱 Social heavy
+  - DOMAIN-SUFFIX,instagram.com,FRAG_CHAIN_LB
+  - DOMAIN-SUFFIX,reddit.com,FRAG_CHAIN_LB
+  - DOMAIN-SUFFIX,cdn.cloudflare.com,FRAG_CHAIN_LB
+
+  # UDP/QUIC traffic
+  - NETWORK,udp,UDP_NOISES_GROUP   # 🌊 UDP noise
+  - DST-PORT,443,UDP_NOISES_GROUP
+  - DST-PORT,2053,UDP_NOISES_GROUP
+  - DST-PORT,8443,UDP_NOISES_GROUP
+
+  # Fallbacks
+  - MATCH,DEFAULT_GROUP   # 🔄 Default routing
+
