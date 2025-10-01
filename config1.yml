@@ -1,0 +1,62 @@
+mixed-port: 7890
+allow-lan: true
+mode: rule
+log-level: silent
+
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: true
+  enhanced-mode: fake-ip
+  nameserver:
+    - https://cloudflare-dns.com/dns-query
+  hosts:
+    cloudflare-dns.com:
+      - 172.67.73.38
+      - 104.19.155.92
+      - 172.67.73.163
+      - 104.18.155.42
+      - 104.16.124.175
+      - 104.16.248.249
+      - 104.16.249.249
+      - 104.26.13.8
+    youtube.com: google.com
+
+proxies:
+  - name: fakeproxy-out
+    type: vless
+    server: google.com
+    port: 443
+    uuid: UUID
+    udp: true
+    tls: true
+    servername: google.com
+    fingerprint: randomized
+    alpn:
+      - h2
+      - http/1.1
+    network: ws
+    ws-opts:
+      path: /
+      headers:
+        Host: google.com
+
+  - name: fragment-out
+    type: direct
+    udp: true
+
+  - name: dns-out
+    type: dns
+
+proxy-groups:
+  - name: Default
+    type: select
+    proxies:
+      - fakeproxy-out
+      - fragment-out
+      - DIRECT
+
+rules:
+  - DST-PORT,53,DNS
+  - DST-PORT,0-65535,fragment-out
+  - MATCH,Default
