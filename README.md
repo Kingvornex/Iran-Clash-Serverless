@@ -227,97 +227,169 @@ Clash.Meta offers an advanced rule-based system that allows users to define gran
 
 ---
 
-## 🔧 Rule Types and Subtypes in Clash.Meta
+## 🔧 Clash.Meta Supported Rule Types with Subtypes and Sub-Rules
 
-Below is a comprehensive list of supported rule types, including their subtypes and conditions:
+### 1. **Domain-Based Rules**
 
-### 1. **DOMAIN Matching Rules**
+* **DOMAIN** – Exact match for a domain.
 
-These rules match based on domain names or patterns.
+  ```yaml
+  DOMAIN,example.com,PROXY
+  ```
+* **DOMAIN-SUFFIX** – Matches domain suffix.
 
-* `DOMAIN`: Matches exact domain names.
-* `DOMAIN-SUFFIX`: Matches domains with a specific suffix.
-* `DOMAIN-KEYWORD`: Matches domains containing a specific keyword.
-* `DOMAIN-WILDCARD`: Wildcard matching, supports `*` and `?` wildcards.
-* `DOMAIN-REGEX`: Matches domains using regular expressions.
+  ```yaml
+  DOMAIN-SUFFIX,example.com,PROXY
+  ```
+* **DOMAIN-KEYWORD** – Matches domain containing a keyword.
 
-### 2. **GEOIP Rules**
+  ```yaml
+  DOMAIN-KEYWORD,example,PROXY
+  ```
+* **DOMAIN-WILDCARD** – Matches domains using wildcards (`*` / `?`).
 
-These rules route traffic based on the geographic location of the destination IP address.
+  ```yaml
+  DOMAIN-WILDCARD,*.example.com,PROXY
+  ```
+* **DOMAIN-REGEX** – Matches domains using regex.
 
-* `GEOIP`: Matches based on the country code of the destination IP.
-* `GEOIP6`: Matches based on the country code of the destination IPv6 address.
-* `GEOSITE`: Matches domains within a specific geosite category.
-
-### 3. **IP-CIDR Rules**
-
-These rules match based on IP address ranges.
-
-* `IP-CIDR`: Matches destination IPv4 address ranges.
-* `IP-CIDR6`: Matches destination IPv6 address ranges.
-* `SRC-IP-CIDR`: Matches source IPv4 address ranges.
-* `SRC-IP-CIDR6`: Matches source IPv6 address ranges.
-
-### 4. **Port Matching Rules**
-
-These rules match based on port numbers.
-
-* `DST-PORT`: Matches destination port numbers.
-* `SRC-PORT`: Matches source port numbers.
-
-*Note: These rules support multiport conditions, allowing specification of multiple ports or port ranges (e.g., `123/136/137-139`).*
-
-### 5. **Process Matching Rules**
-
-These rules match based on the process name or path.
-
-* `PROCESS-NAME`: Matches the name of the process sending the packet.
-* `PROCESS-PATH`: Matches the path of the process sending the packet.
-
-### 6. **Rule Set and Script Rules**
-
-These rules allow for dynamic rule evaluation.
-
-* `RULE-SET`: Matches based on an external rule provider.
-* `SCRIPT`: Matches based on the evaluation of a script.
-
-### 7. **Network and Subrule Conditions**
-
-These conditions apply additional filters to rules.
-
-* `network`: Specifies the network type (e.g., `tcp`, `udp`) for the rule.
-* `subRules`: Defines additional subrules to refine the matching criteria.
-
-*Example: `DOMAIN-SUFFIX,bilibili.com,DIRECT,tcp` routes TCP traffic to `bilibili.com` directly, while `DOMAIN-SUFFIX,bilibili.com,REJECT,udp` rejects UDP traffic to the same domain.*
-
-### 8. **Match Rule**
-
-A catch-all rule that matches any traffic not matched by previous rules.
-
-* `MATCH`: A catch-all rule that matches any traffic not matched by previous rules.
+  ```yaml
+  DOMAIN-REGEX,^.*\.example\.com$,PROXY
+  ```
 
 ---
 
-## 📌 Example Configuration
+### 2. **IP-Based Rules**
+
+* **GEOIP / GEOIP6** – Match based on country code (IPv4 / IPv6).
+
+  ```yaml
+  GEOIP,CN,PROXY
+  GEOIP6,CN,PROXY
+  ```
+* **IP-ASN** – Match based on ASN number.
+
+  ```yaml
+  IP-ASN,714,PROXY
+  ```
+* **IP-CIDR / IP-CIDR6** – Match IPv4 / IPv6 CIDR ranges.
+
+  ```yaml
+  IP-CIDR,192.168.1.0/24,PROXY
+  IP-CIDR6,2001:db8::/32,PROXY
+  ```
+* **SRC-IP-CIDR / SRC-IP-CIDR6** – Match source IPv4 / IPv6 CIDR ranges.
+
+  ```yaml
+  SRC-IP-CIDR,192.168.1.100/32,PROXY
+  SRC-IP-CIDR6,2001:db8::1/128,PROXY
+  ```
+
+---
+
+### 3. **Port-Based Rules**
+
+* **DST-PORT / SRC-PORT** – Match destination or source port.
+
+  ```yaml
+  DST-PORT,80,PROXY
+  SRC-PORT,8080,PROXY
+  ```
+
+---
+
+### 4. **Process-Based Rules**
+
+* **PROCESS-NAME** – Match traffic by process name.
+
+  ```yaml
+  PROCESS-NAME,chrome.exe,PROXY
+  ```
+* **PROCESS-PATH** – Match traffic by process path.
+
+  ```yaml
+  PROCESS-PATH,/usr/bin/chrome,PROXY
+  ```
+
+---
+
+### 5. **Protocol / Network Rules**
+
+* **NETWORK** – Match network type (`TCP` / `UDP`).
+
+  ```yaml
+  NETWORK,TCP,PROXY
+  NETWORK,UDP,DIRECT
+  ```
+* **PROTOCOL** – Match protocol (HTTP / TLS / QUIC, etc.)
+
+  ```yaml
+  PROTOCOL,HTTP,PROXY
+  ```
+
+---
+
+### 6. **Logical / Composite Rules**
+
+* **AND / OR / NOT** – Combine multiple conditions.
+
+  ```yaml
+  AND,DOMAIN,example.com,DST-PORT,443,PROXY
+  OR,DOMAIN,example.com,DST-PORT,443,PROXY
+  NOT,DOMAIN,example.com,PROXY
+  ```
+
+---
+
+### 7. **Sub-Rules (`SUB-RULE`)**
+
+Sub-rules allow branching traffic to a named rule set for further matching. Useful for complex conditions like TCP vs UDP or different IP ranges.
+
+#### **Usage Example:**
 
 ```yaml
 rules:
-  - DOMAIN-SUFFIX,bilibili.com,DIRECT,tcp
-  - DOMAIN-SUFFIX,bilibili.com,REJECT,udp
-  - DST-PORT,123/136/137-139,DIRECT,udp
-  - GEOSITE,category-ads-all,REJECT
-  - GEOIP,CN,DIRECT
-  - MATCH,PROXY
+  - SUB-RULE,(OR,((NETWORK,TCP),(NETWORK,UDP))),sub-rule-name1 # Match TCP or UDP, go to sub-rule-name1
+  - SUB-RULE,(AND,((NETWORK,UDP))),sub-rule-name2            # Match UDP only, go to sub-rule-name2
 ```
 
-In this configuration:
+#### **Sub-rule Sets:**
 
-* TCP traffic to `bilibili.com` is routed directly.
-* UDP traffic to `bilibili.com` is rejected.
-* UDP traffic to ports 123, 136, 137, and 139 is routed directly.
-* Traffic matching the `category-ads-all` geosite is rejected.
-* Traffic to IPs in China is routed directly.
-* All other traffic is routed through the `PROXY` policy.
+```yaml
+sub-rules:
+  sub-rule-name1:
+    - DOMAIN,google.com,ss1
+    - DOMAIN,baidu.com,DIRECT
+  sub-rule-name2:
+    - IP-CIDR,1.1.1.1/32,REJECT
+    - IP-CIDR,8.8.8.8/32,ss1
+    - DOMAIN,dns.alidns.com,REJECT
+```
+
+**💡 Explanation / Flow:**
+
+```
+https://baidu.com  --> rule1 --> rule2 --> sub-rule-name1(match tcp)  --> use DIRECT
+google.com(not match)--> baidu.com(match)  --> sub-rule-name1(match tcp)
+
+dns 1.1.1.1 --> rule1 --> rule2 --> sub-rule-name1(match udp) --> sub-rule-name2(match udp) --> REJECT
+```
+
+* `SUB-RULE` allows multiple branches in one rule using logical conditions (`AND` / `OR`).
+* Each branch can point to its own **sub-rule set**.
+* Sub-rules can themselves contain standard rules (DOMAIN, IP-CIDR, etc.) for further granularity.
+
+---
+
+### 8. **Other Rules**
+
+* **RULE-SET** – Use external rule lists.
+* **SCRIPT** – Use scripts to match traffic.
+* **MATCH** – Catch-all for unmatched traffic.
+
+  ```yaml
+  MATCH,REJECT
+  ```
 
 ---
 
