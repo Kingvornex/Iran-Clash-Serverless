@@ -112,6 +112,7 @@
 This config is essentially a **"super-heavy Mihomo" anti-throttling, anti-DPI, multi-chain/proxy load-balancing setup** for Clash/Clash.Meta, optimized for YouTube, Google, social media, and general obfuscation of network traffic, while also providing ad-blocking and fake-IP DNS for privacy.
 
 ---
+```
 
                                  +------------------+
                                  |   LAN / Client   |
@@ -214,7 +215,7 @@ This config is essentially a **"super-heavy Mihomo" anti-throttling, anti-DPI, m
 +------+-------+
 | direct-out   | ---> traffic leaves as-is
 +--------------+
-
+```
 Special flows:
  - DNS (port 53) => direct-out (local resolver)
  - Ads / private IPs => block-out or direct-out (depending on rule)
